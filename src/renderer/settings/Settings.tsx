@@ -31,8 +31,13 @@ import IconButton from '@material-ui/core/IconButton';
 import Alert from '@material-ui/lab/Alert';
 import Slider from '@material-ui/core/Slider';
 import Tooltip from '@material-ui/core/Tooltip';
+import Dialog from '@material-ui/core/Dialog';
+import DialogTitle from '@material-ui/core/DialogTitle';
+import DialogContent from '@material-ui/core/DialogContent';
+import DialogActions from '@material-ui/core/DialogActions';
 import { GameState } from '../../common/AmongUsState';
-// import '../css/settings.css';
+import Button from '@material-ui/core/Button';
+import { ipcRenderer, remote } from 'electron';
 
 interface StyleInput {
 	open: boolean;
@@ -95,6 +100,15 @@ const useStyles = makeStyles((theme) => ({
 		bottom: theme.spacing(1),
 		zIndex: 10,
 	},
+	urlDialog: {
+		display: 'flex',
+		flexDirection: 'column',
+		alignItems: 'center',
+		justifyContent: 'start',
+		'&>*': {
+			marginBottom: theme.spacing(1),
+		},
+	},
 }));
 
 const keys = new Set([
@@ -152,8 +166,23 @@ const store = new Store<ISettings>({
 			store.delete('stereoInLobby');
 		},
 		'1.2.0': (store) => {
+			if (store.get('serverURL') !== 'http://bettercrewl.ink:6523') {
+				store.set('serverURL', 'http://bettercrewl.ink:6523');
+			}
 			// @ts-ignore
 			store.delete('offsets');
+		},
+		'1.2.1': (store) => {
+			if (store.get('serverURL') !== 'http://bettercrewl.ink:6523') {
+				store.set('serverURL', 'http://bettercrewl.ink:6523');
+			}
+			// @ts-ignore
+			store.delete('offsets');
+		},
+		'1.2.15': (store) => {
+			// if (store.get('serverURL') === 'http://bettercrewl.ink:6523') {
+			// 	store.set('serverURL', 'https://crewl.ink');
+			// }
 		},
 	},
 	schema: {
@@ -198,6 +227,26 @@ const store = new Store<ISettings>({
 			type: 'boolean',
 			default: true,
 		},
+		compactOverlay: {
+			type: 'boolean',
+			default: false,
+		},
+		overlayPosition: {
+			type: 'string',
+			default: 'top',
+		},
+		enableOverlay: {
+			type: 'boolean',
+			default: true,
+		},
+		ghostVolume: {
+			type: 'number',
+			default: 100,
+		},
+		natFix: {
+			type: 'boolean',
+			default: false,
+		},
 		localLobbySettings: {
 			type: 'object',
 			properties: {
@@ -205,6 +254,14 @@ const store = new Store<ISettings>({
 					type: 'number',
 					default: 5.32,
 				},
+				haunting: {
+					type: 'boolean',
+					default: false,
+				},
+			},
+			default: {
+				maxDistance: 5.32,
+				haunting: false,
 			},
 		},
 	},
@@ -262,53 +319,112 @@ interface MediaDevice {
 	label: string;
 }
 
+function validateServerUrl(uri: string): boolean {
+	try {
+		if (!isHttpUri(uri) && !isHttpsUri(uri)) return false;
+		const url = new URL(uri);
+		if (url.hostname === 'discord.gg') return false;
+		if (url.pathname !== '/') return false;
+		return true;
+	} catch (_) {
+		return false;
+	}
+}
+
 type URLInputProps = {
 	initialURL: string;
 	onValidURL: (url: string) => void;
+	className: string;
 };
-
-function validateServerUrl(uri: string): boolean {
-	if (uri.endsWith('/')) return false;
-	if (!isHttpUri(uri) && !isHttpsUri(uri)) return false;
-	const url = new URL(uri);
-	if (url.hostname === 'discord.gg') return false;
-	if (url.pathname !== '/') return false;
-	return true;
-}
 
 const URLInput: React.FC<URLInputProps> = function ({
 	initialURL,
 	onValidURL,
+	className,
 }: URLInputProps) {
 	const [isValidURL, setURLValid] = useState(true);
 	const [currentURL, setCurrentURL] = useState(initialURL);
+	const [open, setOpen] = useState(false);
 
 	useEffect(() => {
 		setCurrentURL(initialURL);
 	}, [initialURL]);
 
 	function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
-		setCurrentURL(event.target.value);
-
-		if (validateServerUrl(event.target.value)) {
+		const url = event.target.value.trim();
+		setCurrentURL(url);
+		if (validateServerUrl(url)) {
 			setURLValid(true);
-			onValidURL(event.target.value);
 		} else {
 			setURLValid(false);
 		}
 	}
 
 	return (
-		<TextField
-			error={!isValidURL}
-			spellCheck={false}
-			label="Voice Server"
-			value={currentURL}
-			onChange={handleChange}
-			variant="outlined"
-			color="secondary"
-			helperText={isValidURL ? '' : 'Invalid URL'}
-		/>
+		<>
+			<Button
+				variant="contained"
+				color="secondary"
+				onClick={() => setOpen(true)}
+			>
+				Change Voice Server
+			</Button>
+			<Dialog fullScreen open={open} onClose={() => setOpen(false)}>
+				<DialogTitle>Change Voice Server</DialogTitle>
+				<DialogContent className={className}>
+					<TextField
+						fullWidth
+						error={!isValidURL}
+						spellCheck={false}
+						label="Voice Server"
+						value={currentURL}
+						onChange={handleChange}
+						variant="outlined"
+						color="primary"
+						helperText={isValidURL ? '' : 'Invalid URL'}
+					/>
+					<Alert severity="error">
+						This option is for advanced users only. Other servers can steal your
+						info or crash CrewLink.
+					</Alert>
+					<Button
+						color="primary"
+						variant="contained"
+						onClick={() => {
+							setOpen(false);
+							setURLValid(true);
+							onValidURL('https://crewl.ink');
+						}}
+					>
+						Reset to default
+					</Button>
+				</DialogContent>
+				<DialogActions>
+					<Button
+						color="primary"
+						onClick={() => {
+							setURLValid(true);
+							setOpen(false);
+							setCurrentURL(initialURL);
+						}}
+					>
+						Cancel
+					</Button>
+					<Button
+						disabled={!isValidURL}
+						color="primary"
+						onClick={() => {
+							setOpen(false);
+							let url = currentURL;
+							if (url.endsWith('/')) url = url.substring(0, url.length - 1);
+							onValidURL(url);
+						}}
+					>
+						Confirm
+					</Button>
+				</DialogActions>
+			</Dialog>
+		</>
 	);
 };
 
@@ -347,7 +463,6 @@ const Settings: React.FC<SettingsProps> = function ({
 			type: 'set',
 			action: store.store,
 		});
-		console.log(store.get('localLobbySettings'));
 		setLobbySettings({
 			type: 'set',
 			action: store.get('localLobbySettings'),
@@ -361,7 +476,20 @@ const Settings: React.FC<SettingsProps> = function ({
 		settings.speaker,
 		settings.serverURL,
 		settings.enableSpatialAudio,
+		settings.natFix,
 	]);
+
+	useEffect(() => {
+		remote
+			.getCurrentWindow()
+			.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver');
+	}, [settings.alwaysOnTop]);
+
+	useEffect(() => {
+		ipcRenderer.send('enableOverlay', settings.enableOverlay);
+	}, [settings.enableOverlay]);
+
+	remote?.getGlobal('overlay')?.webContents.send('overlaySettings', settings);
 
 	const [devices, setDevices] = useState<MediaDevice[]>([]);
 	const [_, updateDevices] = useReducer((state) => state + 1, 0);
@@ -395,7 +523,7 @@ const Settings: React.FC<SettingsProps> = function ({
 		if (k === 'Control' || k === 'Alt' || k === 'Shift')
 			k = (ev.location === 1 ? 'L' : 'R') + k;
 
-		if (/^[0-9A-Z]$/.test(k) || /^F[0-9]{1,2}$/.test(k) || keys.has(k)) {
+		if (/^[0-9A-Z]$/.test(k) || /^F[0-9]{1, 2}$/.test(k) || keys.has(k)) {
 			setSettings({
 				type: 'setOne',
 				action: [shortcut, k],
@@ -420,21 +548,21 @@ const Settings: React.FC<SettingsProps> = function ({
 
 	const microphones = devices.filter((d) => d.kind === 'audioinput');
 	const speakers = devices.filter((d) => d.kind === 'audiooutput');
-	const [localDistance, setLocalDistance] = useState(
-		settings.localLobbySettings.maxDistance
+	const [localLobbySettings, setLocalLobbySettings] = useState(
+		settings.localLobbySettings
 	);
+
 	useEffect(() => {
-		setLocalDistance(settings.localLobbySettings.maxDistance);
-	}, [settings.localLobbySettings.maxDistance]);
+		setLocalLobbySettings(settings.localLobbySettings);
+	}, [settings.localLobbySettings]);
 
 	const isInMenuOrLobby =
-		gameState.gameState === GameState.LOBBY ||
-		gameState.gameState === GameState.MENU;
+		gameState?.gameState === GameState.LOBBY ||
+		gameState?.gameState === GameState.MENU;
 	const canChangeLobbySettings =
-		gameState.gameState === GameState.MENU ||
-		(gameState.isHost && gameState.gameState === GameState.LOBBY);
-
-	console.log(gameState);
+		gameState?.gameState === GameState.MENU ||
+		(gameState?.isHost && gameState?.gameState === GameState.LOBBY);
+	//gittest
 	return (
 		<Box className={classes.root}>
 			<div className={classes.header}>
@@ -457,22 +585,14 @@ const Settings: React.FC<SettingsProps> = function ({
 				<Typography variant="h6">Settings</Typography>
 			</div>
 			<div className={classes.scroll}>
-				<URLInput
-					initialURL={settings.serverURL}
-					onValidURL={(url: string) => {
-						setSettings({
-							type: 'setOne',
-							action: ['serverURL', url],
-						});
-					}}
-				/>
-				<Divider />
 				{/* Lobby Settings */}
 				<div>
 					<Typography variant="h6">Lobby Settings</Typography>
 					<Typography gutterBottom>
 						Voice Distance:{' '}
-						{canChangeLobbySettings ? localDistance : lobbySettings.maxDistance}
+						{canChangeLobbySettings
+							? localLobbySettings.maxDistance
+							: lobbySettings.maxDistance}
 					</Typography>
 					<DisabledTooltip
 						disabled={!canChangeLobbySettings}
@@ -486,31 +606,68 @@ const Settings: React.FC<SettingsProps> = function ({
 							disabled={!canChangeLobbySettings}
 							value={
 								canChangeLobbySettings
-									? localDistance
+									? localLobbySettings.maxDistance
 									: lobbySettings.maxDistance
 							}
 							min={1}
 							max={10}
 							step={0.1}
 							onChange={(_, newValue: number | number[]) => {
-								setLocalDistance(newValue as number);
+								localLobbySettings.maxDistance = newValue as number;
+								setLocalLobbySettings(localLobbySettings);
 							}}
 							onChangeCommitted={(_, newValue: number | number[]) => {
 								setSettings({
 									type: 'setLobbySetting',
 									action: ['maxDistance', newValue as number],
 								});
-								if (gameState.isHost) {
-									setLobbySettings({
-										type: 'setOne',
-										action: ['maxDistance', newValue as number],
-									});
-								}
 							}}
+						/>
+					</DisabledTooltip>
+				
+					<DisabledTooltip
+						disabled={!canChangeLobbySettings}
+						title={
+							isInMenuOrLobby
+								? 'Only the game host can change this!'
+								: 'You can only change this in the lobby!'
+						}
+					>
+						<FormControlLabel
+							label="Haunting"
+							disabled={!canChangeLobbySettings}
+							onChange={(_, newValue: boolean) => {
+								localLobbySettings.haunting = newValue;
+								setLocalLobbySettings(localLobbySettings);
+
+								setSettings({
+									type: 'setLobbySetting',
+									action: ['haunting', newValue],
+								});
+
+								// if (gameState?.isHost) {
+								// 	setLobbySettings({
+								// 		type: 'setOne',
+								// 		action: ['', newValue as boolean],
+								// 	});
+								// }
+							}}
+							value={
+								canChangeLobbySettings
+									? localLobbySettings.haunting
+									: lobbySettings.haunting
+							}
+							checked={
+								canChangeLobbySettings
+									? localLobbySettings.haunting
+									: lobbySettings.haunting
+							}
+							control={<Checkbox />}
 						/>
 					</DisabledTooltip>
 				</div>
 				<Divider />
+				<Typography variant="h6">Audio</Typography>
 				<TextField
 					select
 					label="Microphone"
@@ -578,7 +735,24 @@ const Settings: React.FC<SettingsProps> = function ({
 						value={true}
 						control={<Radio />}
 					/>
+					<Divider />
 				</RadioGroup>
+				<div>
+					<Typography id="input-slider" gutterBottom>
+						Crew volume as ghost
+					</Typography>
+					<Slider
+						value={settings.ghostVolume}
+						valueLabelDisplay="auto"
+						onChange={(_, newValue: number | number[]) => {
+							setSettings({
+								type: 'setOne',
+								action: ['ghostVolume', newValue],
+							});
+						}}
+						aria-labelledby="input-slider"
+					/>
+				</div>
 				<Divider />
 				<Typography variant="h6">Keyboard Shortcuts</Typography>
 				<Grid container spacing={1}>
@@ -632,7 +806,82 @@ const Settings: React.FC<SettingsProps> = function ({
 						/>
 					</Grid>
 				</Grid>
+
 				<Divider />
+				<Typography variant="h6">Overlay</Typography>
+				<FormControlLabel
+					label="Crewlink on top"
+					checked={settings.alwaysOnTop}
+					onChange={(_, checked: boolean) => {
+						setSettings({
+							type: 'setOne',
+							action: ['alwaysOnTop', checked],
+						});
+					}}
+					control={<Checkbox />}
+				/>
+				<FormControlLabel
+					label="Enable Overlay"
+					checked={settings.enableOverlay}
+					onChange={(_, checked: boolean) => {
+						setSettings({
+							type: 'setOne',
+							action: ['enableOverlay', checked],
+						});
+					}}
+					control={<Checkbox />}
+				/>
+				{settings.enableOverlay && (
+					<>
+						<FormControlLabel
+							label="compactOverlay"
+							checked={settings.compactOverlay}
+							onChange={(_, checked: boolean) => {
+								setSettings({
+									type: 'setOne',
+									action: ['compactOverlay', checked],
+								});
+							}}
+							control={<Checkbox />}
+						/>
+						<TextField
+							select
+							label="Overlay Position"
+							variant="outlined"
+							color="secondary"
+							value={settings.overlayPosition}
+							className={classes.shortcutField}
+							SelectProps={{ native: true }}
+							InputLabelProps={{ shrink: true }}
+							onChange={(ev) => {
+								setSettings({
+									type: 'setOne',
+									action: ['overlayPosition', ev.target.value],
+								});
+							}}
+							onClick={updateDevices}
+						>
+							<option value="top">Top Center</option>
+							<option value="bottom_left">Bottom Left</option>
+							<option value="right">Right</option>
+							<option value="left">Left</option>
+						</TextField>
+					</>
+				)}
+
+				<Divider />
+				<Typography variant="h6">Advanced</Typography>
+				<FormControlLabel
+					label="NAT FIX"
+					checked={settings.natFix}
+					onChange={(_, checked: boolean) => {
+						setSettings({
+							type: 'setOne',
+							action: ['natFix', checked],
+						});
+					}}
+					control={<Checkbox />}
+				/>
 				<FormControlLabel
 					label="Show Lobby Code"
 					checked={!settings.hideCode}
@@ -654,6 +903,17 @@ const Settings: React.FC<SettingsProps> = function ({
 						});
 					}}
 					control={<Checkbox />}
+				/>
+
+				<URLInput
+					initialURL={settings.serverURL}
+					onValidURL={(url: string) => {
+						setSettings({
+							type: 'setOne',
+							action: ['serverURL', url],
+						});
+					}}
+					className={classes.urlDialog}
 				/>
 				<Alert
 					className={classes.alert}

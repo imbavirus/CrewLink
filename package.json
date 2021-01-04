@@ -1,11 +1,11 @@
 {
   "name": "crewlink",
-  "version": "1.1.61",
+  "version": "1.2.17",
   "license": "GPL-3.0-or-later",
   "description": "Free, open, Among Us proximity voice chat",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ottomated/crewlink.git"
+    "url": "https://github.com/OhMyGuus/crewlink.git"
   },
   "funding": {
     "type": "individual",
@@ -26,18 +26,6 @@
     "dist:64": "yarn compile && electron-builder --win --x64",
     "publish": "yarn compile && electron-builder --win --x64 --ia32 --publish always"
   },
-  "iohook": {
-    "targets": [
-      "electron-80"
-    ],
-    "platforms": [
-      "win32"
-    ],
-    "arches": [
-      "x64",
-      "ia32"
-    ]
-  },
   "dependencies": {
     "@material-ui/core": "^4.11.2",
     "@material-ui/icons": "^4.11.2",
@@ -45,15 +33,19 @@
     "axios": "^0.21.0",
     "cross-spawn": "^7.0.3",
     "deep-equal": "^2.0.5",
+    "electron-overlay-window": "git://github.com/OhMyGuus/electron-overlay-window",
     "electron-store": "^6.0.1",
     "electron-updater": "^4.3.5",
     "electron-window-state": "^5.0.3",
-    "iohook": "^0.7.1",
     "memoryjs": "git://github.com/Rob--/memoryjs",
+    "node-keyboard-watcher": "git://github.com/OhMyGuus/node-keyboard-watcher",
+    "pretty-bytes": "^5.5.0",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
+    "react-router-dom": "^5.2.0",
+    "react-tooltip-lite": "^1.12.0",
     "registry-js": "^1.12.0",
-    "simple-peer": "^9.8.0",
+    "simple-peer": "https://github.com/vrnagy/simple-peer.git",
     "socket.io-client": "^2.3.1",
     "source-map-support": "^0.5.16",
     "structron": "^0.2.4",
@@ -68,6 +60,7 @@
     "@types/deep-equal": "^1.0.1",
     "@types/js-yaml": "^3.12.5",
     "@types/node": "12",
+    "@types/pretty-bytes": "^5.2.0",
     "@types/react": "^16.9.53",
     "@types/react-dom": "^16.9.8",
     "@types/simple-peer": "^9.6.1",
@@ -87,6 +80,7 @@
     "prettier": "^2.2.1",
     "prettier-eslint": "^12.0.0",
     "typescript": "^4.0.3",
-    "webpack": "~4.42.1"
+    "webpack": "~4.42.1",
+    "webpack-dev-server": "^3.11.0"
   }
 }
